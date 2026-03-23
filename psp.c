@@ -14,6 +14,10 @@ void psp_setup(int16_t seg, uint8_t* fcontent, int argc, char** argv)
     PSP->CPMExit[0] = 0xcd;
     PSP->CPMExit[1] = 0x20;
 
+	// Top of available memory in paragraphs (conventional 640KB = 0xA000).
+	// Programs read this from DS:[0002] to check whether enough memory is free.
+	PSP->FirstFreeSegment = 0x9FFF;
+
     // DOS Far Call: INT 21h + RETF
     PSP->DOSFarCall[0] = 0xcd;
     PSP->DOSFarCall[1] = 0x21;
