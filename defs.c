@@ -5,7 +5,7 @@
 
 int dbgprintf_placeholder(const char *__restrict __format, ...)
 {
-    ;
+    return 0;
 }
 
 int (*dbgprintf)(const char *__restrict __format, ...) = dbgprintf_placeholder;
