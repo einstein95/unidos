@@ -3,6 +3,7 @@
 
 #include <fcntl.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <unistd.h>
 #include <string.h>
 #include <time.h>
@@ -189,18 +190,23 @@ static char* read_str(uint64_t addr, int size)
 static char* read_str_till_char(uint64_t addr, char terminator)
 {
     size_t i = 0;
+    const size_t limit = sizeof(str_buf) - 1;
 
-    // read a string from memory until '@terminator
-    while (true)
+    // read a string from memory until terminator or buffer full
+    while (i < limit)
     {
-        uc_mem_read(uc, addr + i, str_buf + i, 1);
-        if (str_buf[i] == terminator)
+        if (uc_mem_read(uc, addr + i, str_buf + i, 1) != UC_ERR_OK)
         {
-            str_buf[i] = '\0';
+            // unmapped address: stop here rather than crash
+            fprintf(stderr, "read_str_till_char: unmapped address %05" PRIx64 "\n",
+                    addr + i);
             break;
         }
+        if (str_buf[i] == terminator)
+            break;
         i++;
     }
+    str_buf[i] = '\0';
 
     return (char*) str_buf;
 }

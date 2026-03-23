@@ -107,7 +107,10 @@ int main(int argc, char** argv)
 	uc_err err;
 	char* fname;
 	FILE* f;
-	uint8_t fcontent[64 * 1024];    // 64KB for .COM file
+	// Flat image buffer: [0x000..0x0FF] = PSP, [0x100..] = .COM code.
+	// This is written wholesale to COM_SEG*16 in emulated memory.
+	// Must be 64 KB so the .COM image (up to ~64 KB) fits after the PSP.
+	uint8_t fcontent[64 * 1024];
 	long fsize;
 
 	setbuf(stdout, NULL);
@@ -163,9 +166,10 @@ int main(int argc, char** argv)
 	fsize = ftell(f); // get current file pointer
 	fseek(f, 0, SEEK_SET); // seek back to beginning of file
 
-	// copy data in from 0x100
+	// PSP lives at fcontent[0x000..0x0FF], .COM image at fcontent[0x100..].
+	// The whole buffer is later written to COM_SEG*16 in emulated memory.
 	memset(fcontent, 0, sizeof(fcontent));
-	fread(fcontent + DOS_ADDR, fsize, 1, f);
+	fread(fcontent + 0x100, fsize, 1, f);
 
 	err = uc_open(UC_ARCH_X86, UC_MODE_16, &uc);
 	if (err)
@@ -189,10 +193,15 @@ int main(int argc, char** argv)
 	int15_init();
 	int21_init();
 
-	// setup PSP
-	psp_setup(COM_SEG, fcontent, argc, argv);
+	// Build PSP at fcontent[0..0xFF].  Pass seg=0 so psp_setup indexes
+	// fcontent[MK_FP(0,0)] = fcontent[0], which is correct for our layout.
+	psp_setup(0, fcontent, argc, argv);
 
-	// Write PSP + .COM image at the chosen segment
+	// DS:[0002] = top of available memory in paragraphs (standard: 0x9FFF).
+	// Programs read this to check whether enough memory is free.
+	((uint16_t*)fcontent)[1] = 0x9FFF;
+
+	// Write PSP + .COM image to emulated memory at COM_SEG*16.
 	uc_mem_write(uc, COM_SEG * 16, fcontent, 0x100 + fsize);
 
 	// Set segment registers to the PSP segment, as real DOS does for .COM
